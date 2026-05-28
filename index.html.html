@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>컨테이너 입출고 알림</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Apple SD Gothic Neo, sans-serif; background: #f4f5f7; min-height: 100vh; color: #1a1a2e; }
+  header { background: #fff; border-bottom: 1px solid #e8e8e8; padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 16px; font-weight: 600; color: #1a1a2e; }
+  .badge-header { background: #4A154B; color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 20px; }
+  .container { max-width: 720px; margin: 32px auto; padding: 0 16px; }
+  .tabs { display: flex; gap: 2px; background: #e8e8e8; padding: 3px; border-radius: 10px; margin-bottom: 20px; }
+  .tab { flex: 1; padding: 8px; font-size: 13px; font-weight: 500; border: none; background: transparent; border-radius: 8px; cursor: pointer; color: #666; transition: all 0.15s; }
+  .tab.active { background: #fff; color: #1a1a2e; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .card { background: #fff; border-radius: 12px; border: 1px solid #e8e8e8; padding: 20px; margin-bottom: 16px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
+  .form-group input, .form-group select {
+    font-size: 14px; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px;
+    background: #fafafa; color: #1a1a2e; outline: none; transition: border 0.15s;
+    font-family: inherit; width: 100%;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: #4A154B; background: #fff; }
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .btn { padding: 9px 18px; font-size: 13px; font-weight: 600; border-radius: 8px; cursor: pointer; border: none; transition: all 0.15s; font-family: inherit; }
+  .btn-preview { background: #f0f0f0; color: #444; }
+  .btn-preview:hover { background: #e0e0e0; }
+  .btn-send { background: #4A154B; color: #fff; }
+  .btn-send:hover { background: #3a0d3b; }
+  .btn-update { background: #E8A838; color: #fff; }
+  .btn-update:hover { background: #d4952e; }
+  .btn-edit { background: #f0f0f0; color: #555; font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer; border: none; font-family: inherit; }
+  .btn-edit:hover { background: #e0e0e0; }
+  .preview-box { background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #444; font-family: monospace; line-height: 1.7; margin-top: 12px; white-space: pre-wrap; display: none; }
+  .toast { display: none; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; margin-bottom: 14px; align-items: center; gap: 8px; }
+  .toast.show { display: flex; }
+  .toast-success { background: #e6f4ea; color: #1e7e34; border: 1px solid #b7dfc0; }
+  .toast-danger { background: #fdecea; color: #c0392b; border: 1px solid #f5c6cb; }
+  .toast-info { background: #e8f4fd; color: #1565c0; border: 1px solid #b3d4f5; }
+  .section-label { font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+  .history-item { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+  .history-item:last-child { border-bottom: none; }
+  .history-meta { flex: 1; min-width: 0; }
+  .history-title { font-size: 14px; font-weight: 600; color: #1a1a2e; margin-bottom: 2px; }
+  .history-sub { font-size: 12px; color: #888; }
+  .badge-in { background: #e6f4ea; color: #1e7e34; font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
+  .badge-out { background: #fdecea; color: #c0392b; font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
+  .config-box { background: #fafafa; border: 1px solid #e8e8e8; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .status-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot-ok { background: #27ae60; }
+  .dot-idle { background: #aaa; }
+  .dot-err { background: #e74c3c; }
+  .status-text { font-size: 13px; font-weight: 600; color: #444; }
+  .webhook-input { width: 100%; font-size: 13px; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a2e; font-family: monospace; outline: none; }
+  .webhook-input:focus { border-color: #4A154B; }
+  .help-text { font-size: 12px; color: #888; margin-top: 5px; }
+  .step-list { list-style: none; counter-reset: steps; }
+  .step-list li { counter-increment: steps; display: flex; gap: 10px; padding: 7px 0; font-size: 13px; color: #555; border-bottom: 1px solid #f5f5f5; }
+  .step-list li:last-child { border-bottom: none; }
+  .step-list li::before { content: counter(steps); min-width: 22px; height: 22px; background: #4A154B; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  .step-list a { color: #4A154B; }
+  .edit-section { display: none; margin-top: 16px; }
+  .edit-section.open { display: block; }
+  .empty-msg { font-size: 13px; color: #aaa; text-align: center; padding: 24px 0; }
+  .custom-input { display: none; margin-top: 6px; }
+  .custom-input.show { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <span style="font-size:20px;">📦</span>
+  <h1>컨테이너 입출고 알림</h1>
+  <span class="badge-header">Slack</span>
+</header>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('input')">✏️ 입출고 입력</button>
+    <button class="tab" onclick="switchTab('history')">📋 내역 관리</button>
+    <button class="tab" onclick="switchTab('settings')">⚙️ 슬랙 연결</button>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- 입출고 입력 -->
+  <div id="tab-input">
+    <p class="section-label">새 입출고 등록</p>
+    <div class="card">
+
+      <!-- 1행: 날짜 / 시간 / 입출고구분 -->
+      <div class="form-row-3">
+        <div class="form-group">
+          <label>📅 날짜</label>
+          <input type="date" id="f-date">
+        </div>
+        <div class="form-group">
+          <label>🕐 시간</label>
+          <select id="f-time">
+            <option value="">선택</option>
+            <option value="오전 8시">오전 8시</option>
+            <option value="오전 9시">오전 9시</option>
+            <option value="오전 10시">오전 10시</option>
+            <option value="오전 11시">오전 11시</option>
+            <option value="오후 12시">오후 12시 (정오)</option>
+            <option value="오후 1시">오후 1시</option>
+            <option value="오후 2시">오후 2시</option>
+            <option value="오후 3시">오후 3시</option>
+            <option value="오후 4시">오후 4시</option>
+            <option value="오후 5시">오후 5시</option>
+            <option value="오후 6시">오후 6시</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>🚛 하차/상차</label>
+          <select id="f-type">
+            <option value="">선택</option>
+            <option value="하차">📥 하차</option>
+            <option value="상차">📤 상차</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 2행: 거래처 / 화물 -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>🏢 거래처</label>
+          <select id="f-company-sel" onchange="onCompanyChange('f')">
+            <option value="">선택</option>
+            <option value="쑤저우후지">쑤저우후지</option>
+            <option value="해양">해양</option>
+            <option value="우지앙">우지앙</option>
+            <option value="오우루안">오우루안</option>
+            <option value="모나">모나</option>
+            <option value="광저우">광저우</option>
+            <option value="__direct__">✏️ 직접 입력</option>
+          </select>
+          <input type="text" id="f-company-custom" class="custom-input" placeholder="거래처명 직접 입력">
+        </div>
+        <div class="form-group">
+          <label>📦 화물</label>
+          <select id="f-cargo-sel" onchange="toggleCustom('f-cargo-sel','f-cargo-custom')">
+            <option value="">선택</option>
+            <option value="승강기 완제품">승강기 완제품</option>
+            <option value="권상기">권상기</option>
+            <option value="승강기 부품">승강기 부품</option>
+            <option value="__direct__">✏️ 직접 입력</option>
+          </select>
+          <input type="text" id="f-cargo-custom" class="custom-input" placeholder="화물명 직접 입력">
+        </div>
+      </div>
+
+      <!-- 3행: 규격 / 수량 / 입고처 -->
+      <div class="form-row-3">
+        <div class="form-group">
+          <label>📐 규격</label>
+          <select id="f-size">
+            <option value="">선택</option>
+            <option value="20피트">20피트</option>
+            <option value="40피트">40피트</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>🔢 수량</label>
+          <input type="text" id="f-qty" value="1대">
+        </div>
+        <div class="form-group">
+          <label>🏭 입고처</label>
+          <select id="f-location-sel" onchange="toggleCustom('f-location-sel','f-location-custom')">
+            <option value="">선택</option>
+            <option value="1공장">1공장</option>
+            <option value="2공장">2공장</option>
+            <option value="3공장">3공장</option>
+            <option value="__direct__">✏️ 직접 입력</option>
+          </select>
+          <input type="text" id="f-location-custom" class="custom-input" placeholder="입고처 직접 입력">
+        </div>
+      </div>
+
+      <!-- 4행: 비고 -->
+      <div class="form-row">
+        <div class="form-group" style="grid-column: 1 / -1;">
+          <label>📝 비고</label>
+          <input type="text" id="f-note" placeholder="선택사항">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-preview" onclick="previewMsg()">👁 미리보기</button>
+        <button class="btn btn-send" onclick="submitEntry()">📤 슬랙 채널에 전송</button>
+      </div>
+      <div id="preview" class="preview-box"></div>
+    </div>
+  </div>
+
+  <!-- 내역 관리 -->
+  <div id="tab-history" style="display:none;">
+    <p class="section-label">등록된 입출고 내역</p>
+    <div class="card" id="history-list">
+      <p class="empty-msg">아직 등록된 내역이 없어요.</p>
+    </div>
+    <div id="edit-section" class="edit-section">
+      <p class="section-label">내역 수정 후 채널에 공지</p>
+      <div class="card">
+        <div class="form-row-3">
+          <div class="form-group">
+            <label>📅 날짜</label>
+            <input type="date" id="e-date">
+          </div>
+          <div class="form-group">
+            <label>🕐 시간</label>
+            <select id="e-time">
+              <option value="">선택</option>
+              <option value="오전 8시">오전 8시</option>
+              <option value="오전 9시">오전 9시</option>
+              <option value="오전 10시">오전 10시</option>
+              <option value="오전 11시">오전 11시</option>
+              <option value="오후 12시">오후 12시 (정오)</option>
+              <option value="오후 1시">오후 1시</option>
+              <option value="오후 2시">오후 2시</option>
+              <option value="오후 3시">오후 3시</option>
+              <option value="오후 4시">오후 4시</option>
+              <option value="오후 5시">오후 5시</option>
+              <option value="오후 6시">오후 6시</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>🚛 하차/상차</label>
+            <select id="e-type">
+              <option value="">선택</option>
+              <option value="하차">📥 하차</option>
+              <option value="상차">📤 상차</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>🏢 거래처</label>
+            <select id="e-company-sel" onchange="onCompanyChange('e')">
+              <option value="">선택</option>
+              <option value="쑤저우후지">쑤저우후지</option>
+              <option value="해양">해양</option>
+              <option value="우지앙">우지앙</option>
+              <option value="오우루안">오우루안</option>
+              <option value="모나">모나</option>
+              <option value="광저우">광저우</option>
+              <option value="__direct__">✏️ 직접 입력</option>
+            </select>
+            <input type="text" id="e-company-custom" class="custom-input" placeholder="거래처명 직접 입력">
+          </div>
+          <div class="form-group">
+            <label>📦 화물</label>
+            <select id="e-cargo-sel" onchange="toggleCustom('e-cargo-sel','e-cargo-custom')">
+              <option value="">선택</option>
+              <option value="승강기 완제품">승강기 완제품</option>
+              <option value="권상기">권상기</option>
+              <option value="승강기 부품">승강기 부품</option>
+              <option value="__direct__">✏️ 직접 입력</option>
+            </select>
+            <input type="text" id="e-cargo-custom" class="custom-input" placeholder="화물명 직접 입력">
+          </div>
+        </div>
+        <div class="form-row-3">
+          <div class="form-group">
+            <label>📐 규격</label>
+            <select id="e-size">
+              <option value="">선택</option>
+              <option value="20피트">20피트</option>
+              <option value="40피트">40피트</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>🔢 수량</label>
+            <input type="text" id="e-qty" value="1대">
+          </div>
+          <div class="form-group">
+            <label>🏭 입고처</label>
+            <select id="e-location-sel" onchange="toggleCustom('e-location-sel','e-location-custom')">
+              <option value="">선택</option>
+              <option value="1공장">1공장</option>
+              <option value="2공장">2공장</option>
+              <option value="3공장">3공장</option>
+              <option value="__direct__">✏️ 직접 입력</option>
+            </select>
+            <input type="text" id="e-location-custom" class="custom-input" placeholder="입고처 직접 입력">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label>📝 비고</label>
+            <input type="text" id="e-note" placeholder="선택사항">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-update" onclick="updateEntry()">🔄 변경사항 채널에 공지</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 슬랙 연결 -->
+  <div id="tab-settings" style="display:none;">
+    <p class="section-label">슬랙 Webhook 연결</p>
+    <div class="config-box">
+      <div class="status-row">
+        <span class="dot dot-idle" id="dot"></span>
+        <span class="status-text" id="status-text">연결 안 됨</span>
+      </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>Webhook URL</label>
+        <input class="webhook-input" type="password" id="webhook-url" placeholder="https://hooks.slack.com/services/...">
+        <p class="help-text">슬랙 앱 → Incoming Webhooks → URL 복사 후 붙여넣기</p>
+      </div>
+      <button class="btn btn-send" onclick="saveWebhook()">저장</button>
+    </div>
+    <p class="section-label" style="margin-top:20px;">Webhook URL 발급 방법</p>
+    <div class="card">
+      <ul class="step-list">
+        <li><span><a href="https://api.slack.com/apps" target="_blank">api.slack.com/apps</a> 접속 → 앱 클릭</span></li>
+        <li><span>왼쪽 메뉴 <strong>Incoming Webhooks</strong> 클릭</span></li>
+        <li><span><strong>Activate Incoming Webhooks</strong> 토글 켜기</span></li>
+        <li><span><strong>Add New Webhook to Workspace</strong> → 채널 선택 → 허용</span></li>
+        <li><span>생성된 URL 복사 → 위 칸에 붙여넣기 → 저장</span></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+let entries = [];
+let editIndex = null;
+let webhookUrl = localStorage.getItem('webhookUrl') || '';
+
+window.onload = () => {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('f-date').value = today;
+  setDefaults('f');
+  if (webhookUrl) {
+    document.getElementById('webhook-url').value = webhookUrl;
+    setStatus('ok', '연결 준비 완료');
+  }
+};
+
+function setDefaults(p) {
+  document.getElementById(p+'-type').value = '하차';
+  document.getElementById(p+'-company-sel').value = '모나';
+  document.getElementById(p+'-cargo-sel').value = '권상기';
+  document.getElementById(p+'-size').value = '20피트';
+  document.getElementById(p+'-location-sel').value = '2공장';
+}
+
+function toggleCustom(selId, inputId) {
+  const sel = document.getElementById(selId);
+  const inp = document.getElementById(inputId);
+  if (sel.value === '__direct__') {
+    inp.classList.add('show');
+    inp.focus();
+  } else {
+    inp.classList.remove('show');
+    inp.value = '';
+  }
+}
+
+const cargoMap = {
+  '쑤저우후지': '승강기 완제품',
+  '해양': '승강기 부품',
+  '우지앙': '승강기 부품',
+  '오우루안': '승강기 부품',
+  '광저우': '승강기 부품',
+  '모나': '권상기',
+};
+
+function onCompanyChange(p) {
+  const sel = document.getElementById(p+'-company-sel');
+  const customInp = document.getElementById(p+'-company-custom');
+  if (sel.value === '__direct__') {
+    customInp.classList.add('show');
+    customInp.focus();
+  } else {
+    customInp.classList.remove('show');
+    customInp.value = '';
+  }
+  const autoCargo = cargoMap[sel.value];
+  if (autoCargo) {
+    document.getElementById(p+'-cargo-sel').value = autoCargo;
+    document.getElementById(p+'-cargo-custom').classList.remove('show');
+    document.getElementById(p+'-cargo-custom').value = '';
+  }
+}
+
+function getVal(selId, customId) {
+  const sel = document.getElementById(selId);
+  if (sel.value === '__direct__') return document.getElementById(customId).value.trim();
+  return sel.value;
+}
+
+function switchTab(tab) {
+  ['input','history','settings'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach((el,i) => {
+    el.classList.toggle('active', ['input','history','settings'][i]===tab);
+  });
+  if (tab==='history') renderHistory();
+}
+
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  const icon = type==='success' ? '✅' : type==='danger' ? '❌' : 'ℹ️';
+  t.className = `toast show toast-${type}`;
+  t.innerHTML = `${icon} ${msg}`;
+  setTimeout(() => t.className='toast', 3500);
+}
+
+function setStatus(state, text) {
+  document.getElementById('dot').className = `dot dot-${state}`;
+  document.getElementById('status-text').textContent = text;
+}
+
+function getFormData(p='f') {
+  return {
+    date: document.getElementById(p+'-date').value,
+    time: document.getElementById(p+'-time').value,
+    type: document.getElementById(p+'-type').value,
+    company: getVal(p+'-company-sel', p+'-company-custom'),
+    cargo: getVal(p+'-cargo-sel', p+'-cargo-custom'),
+    size: document.getElementById(p+'-size').value,
+    qty: document.getElementById(p+'-qty').value || '1대',
+    location: getVal(p+'-location-sel', p+'-location-custom'),
+    note: document.getElementById(p+'-note').value,
+  };
+}
+
+function buildMessage(d, isUpdate=false) {
+  const typeEmoji = d.type==="하차" ? '📥' : '📤';
+  const header = isUpdate ? '🔄 *[변경사항 공지]*\n' : '';
+  const locationPart = d.location ? ` | ${d.location}` : '';
+  const notePart = d.note ? ` | ${d.note}` : '';
+  return `${header}${typeEmoji} *${d.type}* | 📅 ${d.date} ${d.time} | ${d.company} | ${d.cargo} | ${d.size} | ${d.qty}${locationPart}${notePart}`;
+}
+
+function previewMsg() {
+  const d = getFormData('f');
+  const box = document.getElementById('preview');
+  box.textContent = buildMessage(d);
+  box.style.display = 'block';
+}
+
+async function sendWebhook(text) {
+  if (!webhookUrl) {
+    showToast('슬랙 연결 탭에서 Webhook URL을 먼저 저장해주세요.', 'info');
+    return false;
+  }
+  try {
+    await fetch(webhookUrl, { method: 'POST', body: JSON.stringify({ text }) });
+    return true;
+  } catch(e) {
+    showToast('전송 실패. Webhook URL을 다시 확인해주세요.', 'danger');
+    return false;
+  }
+}
+
+async function submitEntry() {
+  const d = getFormData('f');
+  if (!d.date || !d.time || !d.type || !d.company || !d.cargo || !d.size) {
+    showToast('날짜, 시간, 구분, 거래처, 화물, 규격은 필수입니다.', 'info');
+    return;
+  }
+  const ok = await sendWebhook(buildMessage(d));
+  if (!ok) return;
+  entries.unshift({ ...d, createdAt: new Date().toLocaleString('ko-KR') });
+  showToast('슬랙 채널에 전송했어요!');
+  resetForm('f');
+}
+
+function resetForm(p) {
+  document.getElementById(p+'-date').value = new Date().toISOString().split('T')[0];
+  setDefaults(p);
+  document.getElementById(p+'-qty').value = '1대';
+  document.getElementById(p+'-note').value = '';
+  ['company-custom','cargo-custom','location-custom'].forEach(k => {
+    const el = document.getElementById(p+'-'+k);
+    if (el) { el.value=''; el.classList.remove('show'); }
+  });
+  document.getElementById('preview').style.display = 'none';
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (!entries.length) {
+    list.innerHTML = '<p class="empty-msg">아직 등록된 내역이 없어요.</p>';
+    return;
+  }
+  list.innerHTML = entries.map((e,i) => `
+    <div class="history-item">
+      <div style="padding-top:2px;"><span class="${e.type==='하차'?'badge-in':'badge-out'}">${e.type}</span></div>
+      <div class="history-meta">
+        <div class="history-title">${e.company} · ${e.cargo} ${e.size} ${e.qty}${e.location?' · '+e.location:''}</div>
+        <div class="history-sub">${e.date} ${e.time}${e.note?' · '+e.note:''}</div>
+      </div>
+      <div><button class="btn-edit" onclick="openEdit(${i})">✏️ 수정</button></div>
+    </div>
+  `).join('');
+}
+
+function setSelectOrDirect(p, field, value, presetValues) {
+  const sel = document.getElementById(p+'-'+field+'-sel');
+  const custom = document.getElementById(p+'-'+field+'-custom');
+  if (presetValues.includes(value)) {
+    sel.value = value;
+    custom.classList.remove('show');
+  } else if (value) {
+    sel.value = '__direct__';
+    custom.classList.add('show');
+    custom.value = value;
+  }
+}
+
+function openEdit(i) {
+  editIndex = i;
+  const e = entries[i];
+  document.getElementById('e-date').value = e.date;
+  document.getElementById('e-time').value = e.time;
+  document.getElementById('e-type').value = e.type;
+  document.getElementById('e-size').value = e.size;
+  document.getElementById('e-qty').value = e.qty;
+  document.getElementById('e-note').value = e.note || '';
+  setSelectOrDirect('e','company', e.company, ['쑤저우후지','해양','우지앙','오우루안','모나','광저우']);
+  setSelectOrDirect('e','cargo', e.cargo, ['승강기 완제품','권상기','승강기 부품']);
+  setSelectOrDirect('e','location', e.location||'', ['1공장','2공장','3공장']);
+  const sec = document.getElementById('edit-section');
+  sec.classList.add('open');
+  sec.scrollIntoView({ behavior:'smooth' });
+}
+
+async function updateEntry() {
+  if (editIndex===null) return;
+  const d = getFormData('e');
+  const ok = await sendWebhook(buildMessage(d, true));
+  if (!ok) return;
+  entries[editIndex] = { ...d, createdAt: entries[editIndex].createdAt };
+  editIndex = null;
+  document.getElementById('edit-section').classList.remove('open');
+  showToast('변경사항을 채널에 공지했어요!');
+  renderHistory();
+}
+
+function saveWebhook() {
+  const val = document.getElementById('webhook-url').value.trim();
+  if (val.startsWith('https://hooks.slack.com/')) {
+    webhookUrl = val;
+    localStorage.setItem('webhookUrl', val);
+    setStatus('ok', '연결 준비 완료');
+    showToast('Webhook URL이 저장됐어요!');
+  } else {
+    setStatus('err', '잘못된 URL');
+    showToast('올바른 Webhook URL을 입력해주세요.', 'danger');
+  }
+}
+</script>
+</body>
+</html>
